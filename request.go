@@ -16,15 +16,14 @@ import (
 // Authorization adds the authorization to the http.Request.
 // It should change the http.Request to include whatever needs to be added.
 type Authorization interface {
-	Header(req *http.Request) (*http.Request, error)
+	// Authorize is called after everything is set to the http.Request
+	// and before making the request, so everything needed to authorize
+	// it is added.
+	Authorize(req *http.Request) (*http.Request, error)
 }
 
-// Auditor audits the
-type Auditor interface {
-	Request(req http.Request)
-	Response(resp http.Response)
-}
-
+// Request makes a new http Request with the params, headers and
+// body set.
 type Request struct {
 	client      *http.Client
 	baseURL     *url.URL
@@ -37,20 +36,26 @@ type Request struct {
 	auditor     Auditor
 }
 
+// NewRequest returns a new request.
 func NewRequest(
 	baseURL *url.URL,
 	client *http.Client,
-	auth Authorization,
 	auditor Auditor,
 ) *Request {
 	return &Request{
-		baseURL:     baseURL,
-		client:      client,
-		auth:        auth,
-		auditor:     auditor,
-		headers:     make(map[string]string),
+		baseURL: baseURL,
+		client:  client,
+		auditor: auditor,
+		headers: map[string]string{
+			"accept": "application/json",
+		},
 		queryParams: make(url.Values),
 	}
+}
+
+func (r *Request) WithAuthorization(a Authorization) *Request {
+	r.auth = a
+	return r
 }
 
 func (r *Request) WithHeader(key, value string) *Request {
@@ -91,6 +96,8 @@ func (r *Request) WithQParam(key string, value interface{}) *Request {
 		}
 	case int:
 		r.queryParams.Add(key, fmt.Sprintf("%d", v))
+	case string:
+		r.queryParams.Add(key, v)
 	}
 	return r
 }
@@ -137,19 +144,22 @@ func (r *Request) do(ctx context.Context, method, path string) (interface{}, err
 	for k, v := range r.headers {
 		req.Header.Set(k, v)
 	}
-	if r.auth != nil {
-		req, err = r.auth.Header(req)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	if len(r.bodyBytes) > 0 {
 		req.Header.Add("Content-Length", strconv.Itoa(len(r.bodyBytes)))
 	}
 
+	if r.auth != nil {
+		req, err = r.auth.Authorize(req)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var requestID string
 	if r.auditor != nil {
-		r.auditor.Request(*req)
+		requestID = r.auditor.ID()
+		r.auditor.Request(requestID, req)
 	}
 
 	resp, err := r.client.Do(req)
@@ -157,15 +167,15 @@ func (r *Request) do(ctx context.Context, method, path string) (interface{}, err
 		return nil, err
 	}
 	if r.auditor != nil {
-		r.auditor.Response(*resp)
+		r.auditor.Response(requestID, resp)
 	}
 	defer resp.Body.Close()
 
 	dec := json.NewDecoder(resp.Body)
 
 	if resp.StatusCode >= 300 {
-		re := &RequestError{
-			StatusCode: resp.StatusCode,
+		re := &Error{
+			HttpStatusCode: resp.StatusCode,
 		}
 		dec.Decode(&re)
 		return nil, re

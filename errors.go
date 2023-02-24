@@ -1,6 +1,7 @@
 package go_nordigen
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,31 +15,38 @@ var (
 	ErrNotFound       = errors.New("not found")
 )
 
-// RequestError handles the errors received from the provider.
+// Error handles the errors received from the provider.
 //
 // Some specific errors messages are unwrapped into errors. All the other
 // received error messages that are not recognised should be sent back to the
 // caller.
-type RequestError struct {
+type Error struct {
 	Summary        string `json:"summary"`
 	Detail         string `json:"detail"`
 	Type           string `json:"type"`
 	StatusCode     int    `json:"status_code"`
 	HttpStatusCode int    `json:"-"`
+	Data           string `json:"-"`
 }
 
-func (e *RequestError) Error() string {
-	if e.Detail == "" {
+func (e *Error) Error() string {
+	if e.Summary != "" && e.Detail != "" {
+		return fmt.Sprintf("nordigen error: %d: %s - %s", e.StatusCode, e.Summary, e.Detail)
+	}
+	if e.Summary != "" {
 		return fmt.Sprintf("nordigen error: %d, %s", e.StatusCode, e.Summary)
 	}
-	return fmt.Sprintf("nordigen error: %d: %s - %s", e.StatusCode, e.Summary, e.Detail)
+	if e.Detail != "" {
+		return fmt.Sprintf("nordigen error: %d, %s", e.StatusCode, e.Detail)
+	}
+	return fmt.Sprintf("nordigen error: %d, %s", e.HttpStatusCode, e.Data)
 }
 
 var (
 	reOrderNotExists = regexp.MustCompile(`^OrderID \d+ doesn't exist$`)
 )
 
-func (e *RequestError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	switch strings.ToLower(e.Type) {
 	case "RateLimitError":
 		return ErrRateLimitError
@@ -60,4 +68,20 @@ func (e *RequestError) Unwrap() error {
 		return ErrNotFound
 	}
 	return fmt.Errorf(e.Error())
+}
+
+func (e *Error) UnmarshalJSON(data []byte) error {
+	type Clone Error
+
+	tmp := struct {
+		*Clone
+	}{
+		Clone: (*Clone)(e),
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	e.Data = string(data)
+	return nil
 }

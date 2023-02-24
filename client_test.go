@@ -1,0 +1,175 @@
+package go_nordigen_test
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+	"os/exec"
+	"testing"
+
+	qt "github.com/frankban/quicktest"
+
+	"github.com/antonioplacerda/go-nordigen"
+)
+
+func TestClient_NewToken(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	client, err := go_nordigen.New()
+	c.Assert(err, qt.IsNil)
+
+	t.Run("NOK - Empty secret_id and secret_key", func(t *testing.T) {
+		res, err := client.NewToken(ctx, "", "")
+		c.Check(res, qt.IsNil)
+		c.Check(err, qt.ErrorMatches, `nordigen error: 400, {"secret_id":\["This field may not be blank."\],"secret_key":\["This field may not be blank."\],"status_code":400}`)
+	})
+
+	t.Run("NOK - Empty secret_id", func(t *testing.T) {
+		res, err := client.NewToken(ctx, "", "secret_key")
+		c.Check(res, qt.IsNil)
+		c.Check(err, qt.ErrorMatches, `nordigen error: 400, {"secret_id":\["This field may not be blank."\],"status_code":400}`)
+	})
+
+	t.Run("NOK - Empty secret_key", func(t *testing.T) {
+		res, err := client.NewToken(ctx, "secret_id", "")
+		c.Check(res, qt.IsNil)
+		c.Check(err, qt.ErrorMatches, `nordigen error: 400, {"secret_key":\["This field may not be blank."\],"status_code":400}`)
+	})
+
+	t.Run("NOK - Invalid pair", func(t *testing.T) {
+		res, err := client.NewToken(ctx, "secret_id", "secret_key")
+		c.Check(res, qt.IsNil)
+		c.Check(err, qt.ErrorMatches, `nordigen error: 401: Authentication failed - No active account found with the given credentials`)
+	})
+
+	t.Run("OK - Valid pair", func(t *testing.T) {
+		res, err := client.NewToken(ctx, "", "")
+		c.Assert(res, qt.IsNotNil)
+		c.Check(res.Access != "", qt.IsTrue)
+		c.Check(res.Refresh != "", qt.IsTrue)
+		c.Check(res.AccessExpires != 0, qt.IsTrue)
+		c.Check(res.RefreshExpires != 0, qt.IsTrue)
+		c.Check(err, qt.IsNil)
+	})
+}
+
+func TestClient_ListInstitutions(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	token := go_nordigen.Token{
+		Access:         "",
+		AccessExpires:  86400,
+		Refresh:        "",
+		RefreshExpires: 2592000,
+	}
+
+	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	c.Assert(err, qt.IsNil)
+
+	t.Run("OK", func(t *testing.T) {
+		res, err := client.ListInstitutions(ctx, "PT")
+		c.Check(err, qt.IsNil)
+		c.Check(len(res) > 0, qt.IsTrue)
+	})
+
+	t.Run("NOK - unauthorized", func(t *testing.T) {
+		res, err := client.ListInstitutions(ctx, "PT")
+		c.Check(err, qt.ErrorIs, go_nordigen.ErrInvalidToken)
+		c.Check(res, qt.IsNil)
+	})
+}
+
+func TestClient_CreateRequisition(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	token := go_nordigen.Token{
+		Access:         "",
+		AccessExpires:  86400,
+		Refresh:        "",
+		RefreshExpires: 2592000,
+	}
+
+	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	c.Assert(err, qt.IsNil)
+
+	t.Run("OK", func(t *testing.T) {
+		link, _ := url.Parse("http://localhost:8080")
+		res, err := client.CreateRequisition(ctx, link, "BANCOACTIVOBANK_ACTVPTPL", nil)
+
+		go func() {
+			err := exec.Command("open", res.Link.String()).Start()
+			c.Assert(err, qt.IsNil)
+		}()
+		ch := make(chan bool, 1)
+		go func() {
+			http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ch <- true
+				_, _ = w.Write([]byte("You can close this window now"))
+			}))
+
+			err := http.ListenAndServe(":8080", nil)
+			c.Assert(err, qt.IsNil)
+		}()
+		<-ch
+
+		c.Check(err, qt.IsNil)
+		c.Check(res, qt.IsNotNil)
+		c.Log(res)
+	})
+
+	t.Run("NOK - unauthorized", func(t *testing.T) {
+		res, err := client.ListInstitutions(ctx, "PT")
+		c.Check(err, qt.ErrorIs, go_nordigen.ErrInvalidToken)
+		c.Check(res, qt.IsNil)
+	})
+}
+
+func TestClient_GetRequisition(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	token := go_nordigen.Token{
+		Access:         "",
+		AccessExpires:  86400,
+		Refresh:        "",
+		RefreshExpires: 2592000,
+	}
+
+	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	c.Assert(err, qt.IsNil)
+
+	t.Run("OK", func(t *testing.T) {
+		res, err := client.GetRequisition(ctx, "")
+
+		c.Check(err, qt.IsNil)
+		c.Check(res, qt.IsNotNil)
+		c.Log(res)
+	})
+}
+
+func TestClient_GetTransactions(t *testing.T) {
+	c := qt.New(t)
+	ctx := context.Background()
+
+	token := go_nordigen.Token{
+		Access:         "",
+		AccessExpires:  86400,
+		Refresh:        "",
+		RefreshExpires: 2592000,
+	}
+
+	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	c.Assert(err, qt.IsNil)
+
+	t.Run("OK", func(t *testing.T) {
+		res, err := client.GetTransactions(ctx, "")
+
+		c.Check(err, qt.IsNil)
+		c.Check(res, qt.IsNotNil)
+		c.Log(res)
+	})
+}
+
