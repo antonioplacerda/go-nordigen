@@ -1,4 +1,4 @@
-package go_nordigen
+package nordigen
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/antonioplacerda/requests"
 )
 
 var (
@@ -15,18 +17,31 @@ var (
 	ErrNotFound       = errors.New("not found")
 )
 
+func getError(err error) error {
+	var re *requests.Error
+	if errors.As(err, &re) {
+		e := &Error{err: re}
+		err := json.Unmarshal([]byte(re.Data), &e)
+		if err != nil {
+			return err
+		}
+		return e.Unwrap()
+	}
+
+	return nil
+}
+
 // Error handles the errors received from the provider.
 //
 // Some specific errors messages are unwrapped into errors. All the other
 // received error messages that are not recognised should be sent back to the
 // caller.
 type Error struct {
-	Summary        string `json:"summary"`
-	Detail         string `json:"detail"`
-	Type           string `json:"type"`
-	StatusCode     int    `json:"status_code"`
-	HttpStatusCode int    `json:"-"`
-	Data           string `json:"-"`
+	err        *requests.Error `json:"-'"`
+	Summary    string          `json:"summary"`
+	Detail     string          `json:"detail"`
+	Type       string          `json:"type"`
+	StatusCode int             `json:"status_code"`
 }
 
 func (e *Error) Error() string {
@@ -39,7 +54,7 @@ func (e *Error) Error() string {
 	if e.Detail != "" {
 		return fmt.Sprintf("nordigen error: %d, %s", e.StatusCode, e.Detail)
 	}
-	return fmt.Sprintf("nordigen error: %d, %s", e.HttpStatusCode, e.Data)
+	return e.err.Error()
 }
 
 var (
@@ -63,7 +78,7 @@ func (e *Error) Unwrap() error {
 		}
 	}
 
-	switch e.HttpStatusCode {
+	switch e.err.HttpStatusCode {
 	case http.StatusNotFound:
 		return ErrNotFound
 	}
@@ -82,6 +97,6 @@ func (e *Error) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	e.Data = string(data)
+	e.err.Data = string(data)
 	return nil
 }

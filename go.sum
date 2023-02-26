@@ -1,3 +1,7 @@
+github.com/antonioplacerda/requests v0.0.0-20230225140132-107cc658e16b h1:346J3+w8qQDRXt2RkCCMEjgeOkEWtucx8F7NkMtH8fY=
+github.com/antonioplacerda/requests v0.0.0-20230225140132-107cc658e16b/go.mod h1:PPsI16LWGYCs6vTzJ+lTi4gPe0UtlCrFn/PZpKVQUo0=
+github.com/antonioplacerda/requests v0.0.0-20230225141604-f7bd8c31731a h1:eFTr2mg7F9g7zuKGaJp9R9WF+s9RHfXRC5v6fkcIKJE=
+github.com/antonioplacerda/requests v0.0.0-20230225141604-f7bd8c31731a/go.mod h1:PPsI16LWGYCs6vTzJ+lTi4gPe0UtlCrFn/PZpKVQUo0=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/frankban/quicktest v1.14.4 h1:g2rn0vABPOOXmZUj+vbmUp0lPoXEMuhTpIluN0XL9UY=
 github.com/frankban/quicktest v1.14.4/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=

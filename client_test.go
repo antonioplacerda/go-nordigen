@@ -1,4 +1,4 @@
-package go_nordigen_test
+package nordigen_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ func TestClient_NewToken(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()
 
-	client, err := go_nordigen.New()
+	client, err := nordigen.New(nil)
 	c.Assert(err, qt.IsNil)
 
 	t.Run("NOK - Empty secret_id and secret_key", func(t *testing.T) {
@@ -44,39 +44,35 @@ func TestClient_NewToken(t *testing.T) {
 	})
 
 	t.Run("OK - Valid pair", func(t *testing.T) {
-		res, err := client.NewToken(ctx, "", "")
+		res, err := client.NewToken(ctx, "b721f471-a54f-4af0-98d5-9383f042aec4", "97985fab662556deffe83f7f1ca0617984c1c0ef62a4c7cb5fd9be70ad8dedac01eebd96238efa4d2c8693d8fcdef39cb39e853cdbd908eade707511ca4e0260")
 		c.Assert(res, qt.IsNotNil)
 		c.Check(res.Access != "", qt.IsTrue)
 		c.Check(res.Refresh != "", qt.IsTrue)
 		c.Check(res.AccessExpires != 0, qt.IsTrue)
 		c.Check(res.RefreshExpires != 0, qt.IsTrue)
+		c.Log(res)
 		c.Check(err, qt.IsNil)
 	})
 }
+
+var token = &nordigen.Token{}
 
 func TestClient_ListInstitutions(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()
 
-	token := go_nordigen.Token{
-		Access:         "",
-		AccessExpires:  86400,
-		Refresh:        "",
-		RefreshExpires: 2592000,
-	}
-
-	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	client, err := nordigen.New(nil)
 	c.Assert(err, qt.IsNil)
 
 	t.Run("OK", func(t *testing.T) {
-		res, err := client.ListInstitutions(ctx, "PT")
+		res, err := client.ListInstitutions(ctx, token, "PT")
 		c.Check(err, qt.IsNil)
 		c.Check(len(res) > 0, qt.IsTrue)
 	})
 
 	t.Run("NOK - unauthorized", func(t *testing.T) {
-		res, err := client.ListInstitutions(ctx, "PT")
-		c.Check(err, qt.ErrorIs, go_nordigen.ErrInvalidToken)
+		res, err := client.ListInstitutions(ctx, token, "PT")
+		c.Check(err, qt.ErrorIs, nordigen.ErrInvalidToken)
 		c.Check(res, qt.IsNil)
 	})
 }
@@ -85,19 +81,12 @@ func TestClient_CreateRequisition(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()
 
-	token := go_nordigen.Token{
-		Access:         "",
-		AccessExpires:  86400,
-		Refresh:        "",
-		RefreshExpires: 2592000,
-	}
-
-	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	client, err := nordigen.New(nil)
 	c.Assert(err, qt.IsNil)
 
 	t.Run("OK", func(t *testing.T) {
 		link, _ := url.Parse("http://localhost:8080")
-		res, err := client.CreateRequisition(ctx, link, "BANCOACTIVOBANK_ACTVPTPL", nil)
+		res, err := client.CreateRequisition(ctx, token, link, "BANCOACTIVOBANK_ACTVPTPL", nil)
 
 		go func() {
 			err := exec.Command("open", res.Link.String()).Start()
@@ -121,8 +110,8 @@ func TestClient_CreateRequisition(t *testing.T) {
 	})
 
 	t.Run("NOK - unauthorized", func(t *testing.T) {
-		res, err := client.ListInstitutions(ctx, "PT")
-		c.Check(err, qt.ErrorIs, go_nordigen.ErrInvalidToken)
+		res, err := client.ListInstitutions(ctx, token, "PT")
+		c.Check(err, qt.ErrorIs, nordigen.ErrInvalidToken)
 		c.Check(res, qt.IsNil)
 	})
 }
@@ -131,18 +120,11 @@ func TestClient_GetRequisition(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()
 
-	token := go_nordigen.Token{
-		Access:         "",
-		AccessExpires:  86400,
-		Refresh:        "",
-		RefreshExpires: 2592000,
-	}
-
-	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	client, err := nordigen.New(nil)
 	c.Assert(err, qt.IsNil)
 
 	t.Run("OK", func(t *testing.T) {
-		res, err := client.GetRequisition(ctx, "")
+		res, err := client.GetRequisition(ctx, token, "")
 
 		c.Check(err, qt.IsNil)
 		c.Check(res, qt.IsNotNil)
@@ -154,22 +136,14 @@ func TestClient_GetTransactions(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()
 
-	token := go_nordigen.Token{
-		Access:         "",
-		AccessExpires:  86400,
-		Refresh:        "",
-		RefreshExpires: 2592000,
-	}
-
-	client, err := go_nordigen.New(go_nordigen.WithToken(token))
+	client, err := nordigen.New(nil)
 	c.Assert(err, qt.IsNil)
 
 	t.Run("OK", func(t *testing.T) {
-		res, err := client.GetTransactions(ctx, "")
+		res, err := client.GetBookedTransactions(ctx, token, "7d7321b6-9c89-42f7-bed1-d502693dc0c3")
 
 		c.Check(err, qt.IsNil)
 		c.Check(res, qt.IsNotNil)
 		c.Log(res)
 	})
 }
-
